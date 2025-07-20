@@ -1,0 +1,120 @@
+<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#28a745;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#20c997;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="grad3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffc107;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#fd7e14;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="800" height="600" fill="#f8f9fa"/>
+  
+  <!-- Title -->
+  <text x="400" y="30" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#333">Chat Application API Architecture</text>
+  
+  <!-- Frontend (React) -->
+  <rect x="50" y="80" width="150" height="100" rx="10" fill="url(#grad1)" stroke="#333" stroke-width="2"/>
+  <text x="125" y="110" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="white">React Frontend</text>
+  <text x="125" y="130" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="white">Port: 3003</text>
+  <text x="125" y="150" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="white">WebSocket Client</text>
+  
+  <!-- Backend (Rust) -->
+  <rect x="325" y="80" width="150" height="100" rx="10" fill="url(#grad2)" stroke="#333" stroke-width="2"/>
+  <text x="400" y="110" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="white">Rust Backend</text>
+  <text x="400" y="130" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="white">Port: 3001</text>
+  <text x="400" y="150" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="white">WebSocket Server</text>
+  
+  <!-- Database -->
+  <rect x="325" y="250" width="150" height="80" rx="10" fill="#6c757d" stroke="#333" stroke-width="2"/>
+  <text x="400" y="280" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="white">SQLite Database</text>
+  <text x="400" y="300" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="white">chat.db</text>
+  <text x="400" y="315" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">Message History</text>
+  
+  <!-- Gemini API -->
+  <rect x="600" y="80" width="150" height="100" rx="10" fill="url(#grad3)" stroke="#333" stroke-width="2"/>
+  <text x="675" y="105" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="white">Google Gemini API</text>
+  <text x="675" y="125" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">generativelanguage</text>
+  <text x="675" y="140" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">.googleapis.com</text>
+  <text x="675" y="155" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">Model: gemini-1.5-flash</text>
+  
+  <!-- Environment Variables -->
+  <rect x="600" y="250" width="150" height="60" rx="10" fill="#dc3545" stroke="#333" stroke-width="2"/>
+  <text x="675" y="275" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="white">.env File</text>
+  <text x="675" y="295" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">GOOGLE_API_KEY</text>
+  
+  <!-- Arrows and Flow -->
+  <!-- Frontend to Backend -->
+  <path d="M 200 130 L 325 130" stroke="#333" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+  <text x="262" y="125" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#333">WebSocket</text>
+  
+  <!-- Backend to Database -->
+  <path d="M 400 180 L 400 250" stroke="#333" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+  <text x="420" y="215" font-family="Arial, sans-serif" font-size="11" fill="#333">SQLx</text>
+  
+  <!-- Backend to Gemini API -->
+  <path d="M 475 130 L 600 130" stroke="#333" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+  <text x="537" y="125" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#333">HTTPS</text>
+  
+  <!-- Env to Gemini API -->
+  <path d="M 675 250 L 675 180" stroke="#dc3545" stroke-width="2" fill="none" stroke-dasharray="5,5"/>
+  <text x="690" y="215" font-family="Arial, sans-serif" font-size="11" fill="#dc3545">API Key</text>
+  
+  <!-- Arrow marker definition -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333" />
+    </marker>
+  </defs>
+  
+  <!-- Data Flow Steps -->
+  <text x="50" y="380" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#333">API Connection Flow:</text>
+  
+  <circle cx="70" cy="410" r="12" fill="#667eea" stroke="#333" stroke-width="2"/>
+  <text x="70" y="415" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white">1</text>
+  <text x="90" y="415" font-family="Arial, sans-serif" font-size="13" fill="#333">User sends message via React frontend (WebSocket)</text>
+  
+  <circle cx="70" cy="440" r="12" fill="#28a745" stroke="#333" stroke-width="2"/>
+  <text x="70" y="445" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white">2</text>
+  <text x="90" y="445" font-family="Arial, sans-serif" font-size="13" fill="#333">Rust backend receives message and saves to SQLite database</text>
+  
+  <circle cx="70" cy="470" r="12" fill="#ffc107" stroke="#333" stroke-width="2"/>
+  <text x="70" y="475" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white">3</text>
+  <text x="90" y="475" font-family="Arial, sans-serif" font-size="13" fill="#333">Backend checks if AI should respond (triggers: questions, greetings, mentions)</text>
+  
+  <circle cx="70" cy="500" r="12" fill="#fd7e14" stroke="#333" stroke-width="2"/>
+  <text x="70" y="505" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white">4</text>
+  <text x="90" y="505" font-family="Arial, sans-serif" font-size="13" fill="#333">Backend fetches recent messages for context and calls Gemini API</text>
+  
+  <circle cx="70" cy="530" r="12" fill="#6f42c1" stroke="#333" stroke-width="2"/>
+  <text x="70" y="535" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white">5</text>
+  <text x="90" y="535" font-family="Arial, sans-serif" font-size="13" fill="#333">AI response is saved to database and broadcast to all connected clients</text>
+  
+  <!-- Status Indicators -->
+  <rect x="550" y="380" width="200" height="150" rx="10" fill="#e9ecef" stroke="#333" stroke-width="1"/>
+  <text x="650" y="400" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#333">Current Status</text>
+  
+  <circle cx="570" cy="420" r="6" fill="#28a745"/>
+  <text x="585" y="425" font-family="Arial, sans-serif" font-size="12" fill="#333">✓ Rust Server: Running (Port 3001)</text>
+  
+  <circle cx="570" cy="440" r="6" fill="#28a745"/>
+  <text x="585" y="445" font-family="Arial, sans-serif" font-size="12" fill="#333">✓ React Frontend: Running (Port 3003)</text>
+  
+  <circle cx="570" cy="460" r="6" fill="#28a745"/>
+  <text x="585" y="465" font-family="Arial, sans-serif" font-size="12" fill="#333">✓ SQLite Database: Connected</text>
+  
+  <circle cx="570" cy="480" r="6" fill="#28a745"/>
+  <text x="585" y="485" font-family="Arial, sans-serif" font-size="12" fill="#333">✓ Gemini API: Fixed (gemini-1.5-flash)</text>
+  
+  <circle cx="570" cy="500" r="6" fill="#28a745"/>
+  <text x="585" y="505" font-family="Arial, sans-serif" font-size="12" fill="#333">✓ API Key: Configured</text>
+  
+  <text x="650" y="525" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-style="italic" fill="#666">All systems operational!</text>
+</svg>
