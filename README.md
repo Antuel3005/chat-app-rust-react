@@ -1,32 +1,27 @@
-# Real-time Chat Application
+# Chat Backend API
 
-A minimal real-time chat application built with React (frontend) and Rust (backend) using WebSockets.
+A real-time chat backend API built with Rust using WebSockets and PostgreSQL. This backend is designed to be deployed on Render and provides WebSocket endpoints for real-time messaging with AI integration.
 
 ## Features
 
 - Real-time messaging using WebSockets
-- Multiple users can join with a shareable link
-- Clean and modern UI
-- Responsive design for mobile and desktop
-- Connection status indicator
-- Message timestamps
+- PostgreSQL database for message persistence
+- AI chat integration with Google Gemini
+- Session-based chat rooms
+- CORS enabled for cross-origin requests
+- Environment-based configuration
+- Optimized for cloud deployment
 
 ## Project Structure
 
 ```
 .
-├── Cargo.toml          # Rust backend dependencies
+├── Cargo.toml          # Rust dependencies
 ├── src/
-│   └── main.rs         # Rust WebSocket server
-├── frontend/
-│   ├── package.json    # React dependencies
-│   ├── public/
-│   │   └── index.html  # HTML template
-│   └── src/
-│       ├── App.js      # Main React component
-│       ├── App.css     # Styles
-│       ├── index.js    # React entry point
-│       └── index.css   # Global styles
+│   └── main.rs         # WebSocket server and API
+├── Dockerfile          # Container configuration
+├── .dockerignore       # Docker ignore rules
+├── .gitignore          # Git ignore rules
 └── README.md
 ```
 
@@ -35,69 +30,94 @@ A minimal real-time chat application built with React (frontend) and Rust (backe
 ### Prerequisites
 
 - [Rust](https://rustup.rs/) (latest stable version)
-- [Node.js](https://nodejs.org/) (version 14 or higher)
-- [npm](https://www.npmjs.com/) or [yarn](https://yarnpkg.com/)
+- PostgreSQL database
+- Environment variables configured
 
-### Installation & Running
+### Environment Variables
 
-1. **Start the Rust backend server:**
+Create a `.env` file with the following variables:
+
+```env
+DATABASE_URL=postgresql://username:password@localhost/chatdb
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_API_URL=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+PORT=3001
+```
+
+### Local Development
+
+1. **Install dependencies and run:**
    ```bash
    cargo run
    ```
-   The server will start on `http://localhost:3001`
+   The server will start on the port specified in PORT environment variable (default: 3001)
 
-2. **In a new terminal, install and start the React frontend:**
-   ```bash
-   cd frontend
-   npm install
-   npm start
+2. **WebSocket endpoint:**
    ```
-   The React app will start on `http://localhost:3000`
-
-3. **Open your browser and navigate to `http://localhost:3000`**
-
-4. **Share the link with others to start chatting!**
+   ws://localhost:3001/ws?username=YourName&email=your@email.com
+   ```
 
 ## How it Works
 
-1. **Backend (Rust):** 
-   - Uses `tokio-tungstenite` for WebSocket handling
-   - Uses `warp` for the web server
-   - Broadcasts messages to all connected clients
-   - Handles user connections and disconnections
+**Backend API (Rust):**
+- Uses `warp` for the web server framework
+- WebSocket connections for real-time messaging
+- PostgreSQL for message persistence
+- Google Gemini AI integration for intelligent responses
+- Session-based chat rooms for user isolation
+- CORS enabled for cross-origin frontend integration
 
-2. **Frontend (React):**
-   - Connects to the WebSocket server
-   - Provides a clean chat interface
-   - Handles real-time message display
-   - Shows connection status
+## API Endpoints
 
-## Usage
+### WebSocket Connection
+```
+ws://your-backend-url.onrender.com/ws?username=YourName&email=your@email.com
+```
 
-1. Enter a username when prompted
-2. Start sending messages
-3. Share the URL with others to join the chat
-4. All connected users will see messages in real-time
+**Query Parameters:**
+- `username`: Display name for the user
+- `email`: Unique identifier for the user
+
+**Message Format:**
+```json
+{
+  "id": "uuid",
+  "username": "string",
+  "message": "string",
+  "timestamp": 1234567890,
+  "is_ai": false,
+  "session_id": "uuid"
+}
+```
+
+## Deployment on Render
+
+1. **Connect your GitHub repository to Render**
+2. **Set environment variables in Render dashboard:**
+   - `DATABASE_URL`: PostgreSQL connection string
+   - `GEMINI_API_KEY`: Your Google Gemini API key
+   - `PORT`: Will be set automatically by Render
+3. **Deploy using the included Dockerfile**
 
 ## Development
 
-### Backend Development
-- The Rust server code is in `src/main.rs`
+- Server code is in `src/main.rs`
 - Modify and restart with `cargo run`
+- Database tables are created automatically on startup
 
-### Frontend Development
-- React components are in `frontend/src/`
-- The development server supports hot reloading
-- Modify files and see changes instantly
+## Features
 
-## Future Enhancements
+- ✅ Real-time WebSocket messaging
+- ✅ PostgreSQL message persistence
+- ✅ AI chat integration with Google Gemini
+- ✅ Session-based user isolation
+- ✅ CORS enabled for frontend integration
+- ✅ Cloud deployment ready
+- ✅ Environment-based configuration
 
-- User authentication
-- Message persistence
-- Private rooms/channels
-- File sharing
-- Emoji support
-- User typing indicators
+## Frontend Integration
+
+This backend is designed to work with any WebSocket-capable frontend. Connect to the WebSocket endpoint with the required query parameters and start sending/receiving messages in real-time.
 - Message reactions
 
 ## License
