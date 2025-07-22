@@ -133,18 +133,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ws.on_upgrade(move |socket| handle_websocket(socket, query, users, user_sessions, broadcast_tx, pool))
         });
     
-    // Static files route for serving React app
-    let static_files = warp::path("static")
-        .and(warp::fs::dir("./frontend/build/static"));
-    
-    // Serve index.html for all other routes (SPA routing)
-    let index = warp::get()
-        .and(warp::path::end())
-        .and(warp::fs::file("./frontend/build/index.html"));
-    
+    // API-only routes - no static file serving
     let routes = websocket
-        .or(static_files)
-        .or(index)
         .with(cors);
     
     // Get port from environment variable (Cloud Run sets this)

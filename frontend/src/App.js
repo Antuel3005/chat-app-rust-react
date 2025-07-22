@@ -25,7 +25,9 @@ function App() {
     if (!userInfo || !userInfo.name || !userInfo.email) return;
     
     // Create WebSocket connection with user authentication
-    const wsUrl = `ws://localhost:3001/ws?username=${encodeURIComponent(userInfo.name)}&email=${encodeURIComponent(userInfo.email)}`;
+    // Use environment variable for backend URL, fallback to localhost for development
+    const backendUrl = process.env.REACT_APP_BACKEND_URL || 'ws://localhost:3001';
+    const wsUrl = `${backendUrl}/ws?username=${encodeURIComponent(userInfo.name)}&email=${encodeURIComponent(userInfo.email)}`;
     console.log('Connecting to:', wsUrl);
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
