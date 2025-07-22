@@ -21,39 +21,13 @@ function App() {
     scrollToBottom();
   }, [messages]);
 
-  const onLoginSuccess = (credentialResponse) => {
-    // Decode the JWT token to get user info
-    const decoded = JSON.parse(atob(credentialResponse.credential.split('.')[1]));
-    console.log('Login Success:', decoded);
-    const userInfo = {
-      name: decoded.name,
-      email: decoded.email,
-      imageUrl: decoded.picture
-    };
-    setUser(userInfo);
-    setIsAuthenticated(true);
-    connectWebSocket(userInfo.name);
-  };
-
-  const onLoginFailure = () => {
-    console.log('Login Failed');
-  };
-
-  const handleLogout = () => {
-    console.log('Logout Success');
-    googleLogout();
-    setUser(null);
-    setIsAuthenticated(false);
-    setIsConnected(false);
-    if (wsRef.current) {
-      wsRef.current.close();
-    }
-  };
-
-  const connectWebSocket = (username) => {
-    if (!username) return;
+  const connectWebSocketWithUser = (userInfo) => {
+    if (!userInfo || !userInfo.name || !userInfo.email) return;
     
-    const ws = new WebSocket('ws://localhost:3001/ws');
+    // Create WebSocket connection with user authentication
+    const wsUrl = `ws://localhost:3001/ws?username=${encodeURIComponent(userInfo.name)}&email=${encodeURIComponent(userInfo.email)}`;
+    console.log('Connecting to:', wsUrl);
+    const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -77,6 +51,41 @@ function App() {
     };
   };
 
+  const onLoginSuccess = (credentialResponse) => {
+    // Decode the JWT token to get user info
+    const decoded = JSON.parse(atob(credentialResponse.credential.split('.')[1]));
+    console.log('Login Success:', decoded);
+    const userInfo = {
+      name: decoded.name,
+      email: decoded.email,
+      imageUrl: decoded.picture
+    };
+    setUser(userInfo);
+    setIsAuthenticated(true);
+    // Connect WebSocket with userInfo directly instead of relying on state
+    connectWebSocketWithUser(userInfo);
+  };
+
+  const onLoginFailure = () => {
+    console.log('Login Failed');
+  };
+
+  const handleLogout = () => {
+    console.log('Logout Success');
+    googleLogout();
+    setUser(null);
+    setIsAuthenticated(false);
+    setIsConnected(false);
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+  };
+
+  const connectWebSocket = (username) => {
+    if (!username || !user) return;
+    connectWebSocketWithUser(user);
+  };
+
   const sendMessage = () => {
     if (!inputMessage.trim() || !isConnected || !user) return;
 
@@ -85,7 +94,8 @@ function App() {
       username: user.name,
       message: inputMessage.trim(),
       timestamp: Date.now(),
-      is_ai: false
+      is_ai: false,
+      session_id: '' // Will be set by backend
     };
 
     wsRef.current.send(JSON.stringify(message));
@@ -106,9 +116,14 @@ function App() {
     return (
       <div className="app">
         <div className="username-container">
-          <h1>Join Chat</h1>
+          <h1>🤖 Private AI Assistant</h1>
           <div className="oauth-container">
-            <p>Sign in with your Google account to join the chat</p>
+            <p>Sign in with your Google account to start your private AI chat session</p>
+            <div className="features-info">
+              <p>✨ Your own private conversation with AI</p>
+              <p>🔒 No other users can see your messages</p>
+              <p>💬 Personalized responses just for you</p>
+            </div>
             <GoogleLogin
                onSuccess={onLoginSuccess}
                onError={onLoginFailure}
@@ -128,10 +143,11 @@ function App() {
       <div className="chat-container">
         <div className="chat-header">
           <div className="header-left">
-            <h1>Chat Room</h1>
+            <h1>🤖 Private AI Assistant</h1>
             <div className="user-info">
               <img src={user?.imageUrl} alt="Profile" className="profile-image" />
               <span className="user-name">{user?.name}</span>
+              <span className="session-info">• Private Session</span>
             </div>
           </div>
           <div className="header-right">

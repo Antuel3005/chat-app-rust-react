@@ -6,8 +6,8 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use std::env;
-use sqlx::{SqlitePool, Row};
-use sqlx::sqlite::{SqlitePoolOptions, SqliteConnectOptions};
+use sqlx::{PgPool, Row};
+use sqlx::postgres::PgPoolOptions;
 use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -17,6 +17,7 @@ struct ChatMessage {
     message: String,
     timestamp: u64,
     is_ai: bool,
+    session_id: String,
 }
 
 #[derive(Debug, Clone)]
@@ -26,6 +27,7 @@ struct DatabaseMessage {
     message: String,
     timestamp: DateTime<Utc>,
     is_ai: bool,
+    session_id: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -54,6 +56,7 @@ struct GeminiCandidate {
 }
 
 type Users = Arc<RwLock<HashMap<String, broadcast::Sender<ChatMessage>>>>;
+type UserSessions = Arc<RwLock<HashMap<String, String>>>; // Maps user_id to session_id
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -68,27 +71,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     println!("Using Gemini API at: {}", gemini_url);
     
-    // Initialize SQLite database
-    let database_url = "sqlite:chat.db";
-    let pool = SqlitePoolOptions::new()
+    // Initialize PostgreSQL database
+    let database_url = env::var("DATABASE_URL")
+        .expect("DATABASE_URL environment variable must be set");
+    
+    let pool = PgPoolOptions::new()
         .max_connections(5)
-        .connect_with(
-            SqliteConnectOptions::new()
-                .filename("chat.db")
-                .create_if_missing(true)
-        )
+        .connect(&database_url)
         .await
-        .expect("Failed to connect to SQLite database");
+        .expect("Failed to connect to PostgreSQL database");
+    
+    println!("Connected to PostgreSQL database");
     
     // Create tables if they don't exist
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS messages (
-            id TEXT PRIMARY KEY,
-            username TEXT NOT NULL,
+            id VARCHAR(36) PRIMARY KEY,
+            username VARCHAR(255) NOT NULL,
             message TEXT NOT NULL,
-            timestamp DATETIME NOT NULL,
-            is_ai BOOLEAN NOT NULL DEFAULT FALSE
+            timestamp TIMESTAMPTZ NOT NULL,
+            is_ai BOOLEAN NOT NULL DEFAULT FALSE,
+            session_id VARCHAR(36) NOT NULL
         )
         "#,
     )
@@ -96,9 +100,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .await
     .expect("Failed to create messages table");
     
+    // Create index on session_id for better query performance
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id)"
+    )
+    .execute(&pool)
+    .await
+    .expect("Failed to create session_id index");
+    
     println!("Database initialized successfully");
     
     let users = Users::default();
+    let user_sessions = UserSessions::default();
     let (tx, _rx) = broadcast::channel(100);
     let broadcast_tx = Arc::new(tx);
     
@@ -108,14 +121,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .allow_headers(vec!["content-type"])
         .allow_methods(vec!["GET", "POST", "OPTIONS"]);
     
-    // WebSocket route
+    // WebSocket route with user authentication
     let websocket = warp::path("ws")
         .and(warp::ws())
+        .and(warp::query::<std::collections::HashMap<String, String>>())
         .and(with_users(users.clone()))
+        .and(with_user_sessions(user_sessions.clone()))
         .and(with_broadcast(broadcast_tx.clone()))
         .and(with_db(pool.clone()))
-        .map(|ws: warp::ws::Ws, users, broadcast_tx, pool| {
-            ws.on_upgrade(move |socket| handle_websocket(socket, users, broadcast_tx, pool))
+        .map(|ws: warp::ws::Ws, query: std::collections::HashMap<String, String>, users, user_sessions, broadcast_tx, pool| {
+            ws.on_upgrade(move |socket| handle_websocket(socket, query, users, user_sessions, broadcast_tx, pool))
         });
     
     // Static files route for serving React app
@@ -148,6 +163,10 @@ fn with_users(users: Users) -> impl Filter<Extract = (Users,), Error = std::conv
     warp::any().map(move || users.clone())
 }
 
+fn with_user_sessions(user_sessions: UserSessions) -> impl Filter<Extract = (UserSessions,), Error = std::convert::Infallible> + Clone {
+    warp::any().map(move || user_sessions.clone())
+}
+
 fn with_broadcast(
     broadcast_tx: Arc<broadcast::Sender<ChatMessage>>,
 ) -> impl Filter<Extract = (Arc<broadcast::Sender<ChatMessage>>,), Error = std::convert::Infallible> + Clone {
@@ -155,22 +174,52 @@ fn with_broadcast(
 }
 
 fn with_db(
-    pool: SqlitePool,
-) -> impl Filter<Extract = (SqlitePool,), Error = std::convert::Infallible> + Clone {
+    pool: PgPool,
+) -> impl Filter<Extract = (PgPool,), Error = std::convert::Infallible> + Clone {
     warp::any().map(move || pool.clone())
 }
 
 async fn handle_websocket(
     ws: warp::ws::WebSocket,
+    query: std::collections::HashMap<String, String>,
     _users: Users,
+    user_sessions: UserSessions,
     broadcast_tx: Arc<broadcast::Sender<ChatMessage>>,
-    pool: SqlitePool,
+    pool: PgPool,
 ) {
-    let user_id = Uuid::new_v4().to_string();
+    // Extract user info from query parameters
+    let username = match query.get("username") {
+        Some(name) => name.clone(),
+        None => {
+            eprintln!("WebSocket connection rejected: missing username");
+            return;
+        }
+    };
+    
+    let user_email = match query.get("email") {
+        Some(email) => email.clone(),
+        None => {
+            eprintln!("WebSocket connection rejected: missing email");
+            return;
+        }
+    };
+    
+    // Create or get user session (each user gets their own private session)
+    let session_id = Uuid::new_v4().to_string();
+    let user_id = user_email.clone(); // Use email as unique user identifier
+    
+    // Store user session mapping
+    {
+        let mut sessions = user_sessions.write().await;
+        sessions.insert(user_id.clone(), session_id.clone());
+    }
+    
     let (mut ws_tx, mut ws_rx) = ws.split();
     
-    // Send recent messages to new user
-    if let Ok(recent_messages) = get_recent_messages(&pool, 50).await {
+    println!("User {} ({}) connected with session {}", username, user_email, session_id);
+    
+    // Send recent messages from this user's session to the user
+    if let Ok(recent_messages) = get_recent_messages_by_session(&pool, &session_id, 50).await {
         for msg in recent_messages {
             let chat_msg = ChatMessage {
                 id: msg.id,
@@ -178,6 +227,7 @@ async fn handle_websocket(
                 message: msg.message,
                 timestamp: msg.timestamp.timestamp_millis() as u64,
                 is_ai: msg.is_ai,
+                session_id: msg.session_id,
             };
             let json = serde_json::to_string(&chat_msg).unwrap();
             if ws_tx.send(warp::ws::Message::text(json)).await.is_err() {
@@ -192,6 +242,8 @@ async fn handle_websocket(
     // Spawn task to handle incoming messages from this user
     let broadcast_tx_clone = broadcast_tx.clone();
     let user_id_clone = user_id.clone();
+    let session_id_clone = session_id.clone();
+    let username_clone = username.clone();
     let pool_clone = pool.clone();
     tokio::spawn(async move {
         while let Some(result) = ws_rx.next().await {
@@ -199,19 +251,21 @@ async fn handle_websocket(
                 Ok(msg) => {
                     if let Ok(text) = msg.to_str() {
                         if let Ok(mut chat_msg) = serde_json::from_str::<ChatMessage>(text) {
-                            // Ensure user messages are not marked as AI
+                            // Ensure user messages are not marked as AI and set session_id
                             chat_msg.is_ai = false;
+                            chat_msg.session_id = session_id_clone.clone();
+                            chat_msg.username = username_clone.clone();
                             
                             // Save user message to database
                              let _ = save_message_to_db(&pool_clone, &chat_msg).await;
                             
-                            // Broadcast the user message
+                            // Broadcast the user message (only to this session)
                             let _ = broadcast_tx_clone.send(chat_msg.clone());
                             
                             // Check if AI should respond
                              if should_ai_respond(&chat_msg.message) {
-                                 // Get recent conversation context from database
-                                 let context_messages = get_recent_messages(&pool_clone, 10).await.unwrap_or_default();
+                                 // Get recent conversation context from this user's session
+                                 let context_messages = get_recent_messages_by_session(&pool_clone, &session_id_clone, 10).await.unwrap_or_default();
                                  let ai_response = get_ai_response_with_context(&chat_msg.message, &context_messages, &chat_msg.username).await;
                                  if let Some(response_text) = ai_response {
                                     let ai_message = ChatMessage {
@@ -223,6 +277,7 @@ async fn handle_websocket(
                                             .unwrap()
                                             .as_millis() as u64,
                                         is_ai: true,
+                                        session_id: session_id_clone.clone(),
                                     };
                                     
                                     // Save AI message to database
@@ -244,15 +299,24 @@ async fn handle_websocket(
         }
     });
     
-    // Handle outgoing messages to this user
+    // Handle outgoing messages to this user (only messages from their session)
     while let Ok(msg) = rx.recv().await {
-        let json = serde_json::to_string(&msg).unwrap();
-        if ws_tx.send(warp::ws::Message::text(json)).await.is_err() {
-            break;
+        // Only send messages that belong to this user's session
+        if msg.session_id == session_id {
+            let json = serde_json::to_string(&msg).unwrap();
+            if ws_tx.send(warp::ws::Message::text(json)).await.is_err() {
+                break;
+            }
         }
     }
     
-    println!("User {} disconnected", user_id);
+    // Clean up user session when disconnected
+    {
+        let mut sessions = user_sessions.write().await;
+        sessions.remove(&user_id);
+    }
+    
+    println!("User {} ({}) disconnected from session {}", username, user_email, session_id);
 }
 
 // Function to determine if AI should respond to a message
@@ -350,28 +414,57 @@ async fn get_ai_response_with_context(user_message: &str, context_messages: &[Da
 }
 
 // Function to save message to database
-async fn save_message_to_db(pool: &SqlitePool, message: &ChatMessage) -> Result<(), sqlx::Error> {
+async fn save_message_to_db(pool: &PgPool, message: &ChatMessage) -> Result<(), sqlx::Error> {
     let timestamp = DateTime::<Utc>::from_timestamp_millis(message.timestamp as i64)
         .unwrap_or_else(|| Utc::now());
     
     sqlx::query(
-        "INSERT INTO messages (id, username, message, timestamp, is_ai) VALUES (?, ?, ?, ?, ?)"
+        "INSERT INTO messages (id, username, message, timestamp, is_ai, session_id) VALUES ($1, $2, $3, $4, $5, $6)"
     )
     .bind(&message.id)
     .bind(&message.username)
     .bind(&message.message)
     .bind(timestamp)
     .bind(message.is_ai)
+    .bind(&message.session_id)
     .execute(pool)
     .await?;
     
     Ok(())
 }
 
-// Function to get recent messages from database
-async fn get_recent_messages(pool: &SqlitePool, limit: i32) -> Result<Vec<DatabaseMessage>, sqlx::Error> {
+// Function to get recent messages from database by session
+async fn get_recent_messages_by_session(pool: &PgPool, session_id: &str, limit: i32) -> Result<Vec<DatabaseMessage>, sqlx::Error> {
     let rows = sqlx::query(
-        "SELECT id, username, message, timestamp, is_ai FROM messages ORDER BY timestamp DESC LIMIT ?"
+        "SELECT id, username, message, timestamp, is_ai, session_id FROM messages WHERE session_id = $1 ORDER BY timestamp DESC LIMIT $2"
+    )
+    .bind(session_id)
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+    
+    let mut messages = Vec::new();
+    for row in rows {
+        let message = DatabaseMessage {
+            id: row.get("id"),
+            username: row.get("username"),
+            message: row.get("message"),
+            timestamp: row.get("timestamp"),
+            is_ai: row.get("is_ai"),
+            session_id: row.get("session_id"),
+        };
+        messages.push(message);
+    }
+    
+    // Reverse to get chronological order (oldest first)
+    messages.reverse();
+    Ok(messages)
+}
+
+// Function to get recent messages from database (legacy - kept for compatibility)
+async fn get_recent_messages(pool: &PgPool, limit: i32) -> Result<Vec<DatabaseMessage>, sqlx::Error> {
+    let rows = sqlx::query(
+        "SELECT id, username, message, timestamp, is_ai, session_id FROM messages ORDER BY timestamp DESC LIMIT $1"
     )
     .bind(limit)
     .fetch_all(pool)
@@ -385,6 +478,7 @@ async fn get_recent_messages(pool: &SqlitePool, limit: i32) -> Result<Vec<Databa
             message: row.get("message"),
             timestamp: row.get("timestamp"),
             is_ai: row.get("is_ai"),
+            session_id: row.get("session_id"),
         };
         messages.push(message);
     }

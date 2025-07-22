@@ -48,6 +48,22 @@ body {
   font-size: 16px;
 }
 
+.features-info {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 20px 0;
+  border-left: 4px solid #28a745;
+}
+
+.features-info p {
+  margin: 8px 0;
+  color: #495057;
+  font-size: 14px;
+  text-align: left;
+  font-weight: 500;
+}
+
 .google-login-button {
   margin: 0 auto;
   border-radius: 8px !important;
@@ -115,6 +131,16 @@ body {
 .user-name {
   font-weight: 500;
   color: #555;
+}
+
+.session-info {
+  font-size: 12px;
+  color: #28a745;
+  font-weight: 500;
+  background: rgba(40, 167, 69, 0.1);
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(40, 167, 69, 0.2);
 }
 
 .logout-button {
